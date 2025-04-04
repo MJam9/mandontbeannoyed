@@ -5,6 +5,7 @@ import time
 import numpy as np
 from field import Field
 from database import DiceStatistics  # Importiere die Datenbankklasse
+from rollstate import RollState
 
 class Board():
     def __init__(self, players, db_instance, cell_size=50, border=10):
@@ -77,46 +78,99 @@ class Board():
     def show_roll_die(self):
         """Zeigt einen Button zum Würfeln an und wartet auf die Auswahl des Spielers."""
         font = pygame.font.Font('freesansbold.ttf', 35)
+        font_small = pygame.font.Font('freesansbold.ttf', 25)
 
         # Position des ursprünglichen Textes
         text_x = self.screen_width // 4 + self.screen_width // 2
         text_y = self.screen_height - 20
 
-        # Button für "Würfeln" an derselben Position wie der Text
+        # Button für "Würfeln"
         roll_button = pygame.Rect(text_x - 75, text_y - 10, 150, 20)  # Position leicht anpassen für Button-Größe
 
         # Text für den Button rendern
         roll_text = font.render('Würfeln', True, pygame.Color("black"))
 
-        # UI-Elemente zeichnen
+        # UI-Elemente für den "Würfeln"-Button zeichnen
         pygame.draw.rect(self.screen, pygame.Color(self.bg_color), roll_button, border_radius=10)
 
         # Text zentrieren und auf den Button setzen
         roll_text_rect = roll_text.get_rect(center=roll_button.center)
         self.screen.blit(roll_text, roll_text_rect)
 
+        # Abrufen der Würfelstatistiken
+        player_name = f'Player {self.players[self.player].player_id}'
+        stats = self.db.get_statistics(player_name)  # Statistiken abrufen
+
+        # Falls keine Daten vorhanden sind, ersetze durch 0
+        stats = {i: stats.get(i, 0) for i in range(1, 7)}
+
+        # Positionierung der Statistik-Buttons
+        button_width = 50
+        button_height = 30
+        button_x_start = self.screen_width // 2 - 230  # Startpunkt
+        button_y = self.screen_height - 70  # Vertikale Position der Buttons
+
+        self.button_rects = []  # Speichert die klickbaren Bereiche
+
+        # Buttons für jede Zahl erstellen
+        for i in range(1, 7):
+            button_rect = pygame.Rect(button_x_start + (i - 1) * (button_width + 30), button_y, button_width, button_height)
+            self.button_rects.append((button_rect, i))  # Speichern der Rechtecke mit der Zahl
+
+            # Text rendern
+            button_text = font_small.render(f"{i}x{stats[i]}", True, pygame.Color("black"))
+
+            # Button zeichnen
+            pygame.draw.rect(self.screen, pygame.Color("lightgray"), button_rect, border_radius=5)
+            text_rect = button_text.get_rect(center=button_rect.center)
+            self.screen.blit(button_text, text_rect)
+
         pygame.display.flip()
 
-        # # Warten auf Klick
-        # while True:
-        #     clicked = self.handle_mouse_click([(roll_button, True)])
-        #     if clicked is not None:
-        #         print("Würfel button klick")
-        #         return True  # Button wurde gedrückt
+        # # Events abfragen und verarbeiten
+        # events = pygame.event.get()
+        # for event in events:
+        #     if event.type == pygame.QUIT:
+        #         return False
+            
+        #     # Nur Mausbuttondown-Event berücksichtigen
+        #     if event.type == pygame.MOUSEBUTTONDOWN:
+        #         mouse_x, mouse_y = pygame.mouse.get_pos()
 
-        # Überprüfen aller Events, ohne zu blockieren
+        #         # Prüfen, ob der "Würfeln"-Button geklickt wurde
+        #         if roll_button.collidepoint(mouse_x, mouse_y):
+        #             print("Würfeln button geklickt")
+        #             return True  # Gib zurück, dass der Würfeln-Button geklickt wurde
+
+        #         # Prüfen, ob einer der Zahl-Buttons geklickt wurde
+        #         for button_rect, value in self.button_rects:
+        #             if button_rect.collidepoint(mouse_x, mouse_y):
+        #                 print(f"Zahl {value} gewählt")  # Ausgabe der gewählten Zahl in der Konsole
+
+        # return False  # Falls kein Button gedrückt wurde
+
+        # Events abfragen und verarbeiten
         events = pygame.event.get()
         for event in events:
             if event.type == pygame.QUIT:
-                return False
-
-            # Prüfen, ob der Klick im Bereich des Buttons ist
+                return RollState.WAITING  # Das Warten wird angezeigt, wenn das Fenster geschlossen wird
+        
+            # Nur Mausbuttondown-Event berücksichtigen
             if event.type == pygame.MOUSEBUTTONDOWN:
                 mouse_x, mouse_y = pygame.mouse.get_pos()
-                if roll_button.collidepoint(mouse_x, mouse_y):  # Button geklickt
-                    print("Würfel button klick")
-                    return True  # Rückgabe, um anzuzeigen, dass der Button geklickt wurde
-            return False
+
+                # Prüfen, ob der "Würfeln"-Button geklickt wurde
+                if roll_button.collidepoint(mouse_x, mouse_y):
+                    print("Würfeln button geklickt")
+                    return RollState.ROLL  # Zurückgeben, dass "Würfeln" gewählt wurde
+
+                # Prüfen, ob einer der Zahl-Buttons geklickt wurde
+                for button_rect, value in self.button_rects:
+                    if button_rect.collidepoint(mouse_x, mouse_y):
+                        print(f"Zahl {value} gewählt")  # Ausgabe der gewählten Zahl in der Konsole
+                        return RollState(value)  # Zurückgeben der entsprechenden Zahl
+
+        return RollState.WAITING  # Wenn kein Button gedrückt wurde, zurückgeben, dass gewartet wird
 
     def show_die_result(self):
        font = pygame.font.Font('freesansbold.ttf', 35)
@@ -144,8 +198,7 @@ class Board():
            self.show_roll_die()
        else:
            self.show_die_result()
-
-       self.show_db_status()
+           #self.show_db_status() -> einfache text anzeige umschreiben
 
     def show_db_status(self):
         """Zeigt die Würfelstatistiken für den aktuellen Spieler an."""
@@ -189,36 +242,11 @@ class Board():
                 return False
 
             # Prüfen, ob einer der Statistik-Buttons geklickt wurde
-            if event.type == pygame.MOUSEBUTTONDOWN:
-                mouse_x, mouse_y = pygame.mouse.get_pos()
-                for button_rect, value in self.button_rects:
-                    if button_rect.collidepoint(mouse_x, mouse_y):
-                        print(f"{value} wurde geklickt")
-                        return value  # Gibt die geklickte Zahl zurück
+            result = self.handle_mouse_click_on_button(event, None, self.button_rects)
+            if result:
+                return result  # Gibt die gewählte Zahl zurück
         return None  # Falls kein Button gedrückt wurde
-
-    #    # Text für die Anzeige
-    #    font = pygame.font.Font('freesansbold.ttf', 25)
-    #    stats_text = f'DB | 1x{stats[1]} | 2x{stats[2]} | 3x{stats[3]} | 4x{stats[4]} | 5x{stats[5]} | 6x{stats[6]}'
-
-    #    # Text rendern
-    #    text = font.render(stats_text, True, pygame.Color("black"))
-    #    textRect = text.get_rect()
-    #    textRect.center = (self.screen_width // 2, self.screen_height - 50)
-    #    self.screen.blit(text, textRect)
-
-    #    # Position der einzelnen Zahlen (für Klickerkennung)
-    #    button_width = 50
-    #    button_height = 30
-    #    button_x_start = self.screen_width // 2 - 200  # Anfangspunkt für die Buttons
-    #    button_y = self.screen_height - 50  # Y-Position der Zahlen
-
-    #    # Rechtecke für die einzelnen Zahlen erstellen (klickbare Bereiche)
-    #    self.button_rects = []
-    #    for i in range(1, 7):
-    #        button_rect = pygame.Rect(button_x_start + (i - 1) * (button_width + 30), button_y, button_width, button_height)
-    #        self.button_rects.append((button_rect, i))  # Speichern der Rechtecke und der Zahl
-
+        
     def handle_button_click(self, pos):
        """Überprüft, ob eine Zahl geklickt wurde und gibt die gewählte Zahl aus."""
        for button_rect, number in self.button_rects:
@@ -283,65 +311,4 @@ class Board():
        self.show_pieces()
        self.show_next_move()
        pygame.display.flip()
-
-    # def handle_mouse_events(self, mode):
-    #     """
-    # Zentrale Event-Handling-Funktion.
-    # mode: "roll" für Würfeln, "select_number" für Zahlenwahl, "choose_action" für Speichern/Spielen.
-    # """
-    #     while True:
-    #         for event in pygame.event.get():
-    #             if event.type == pygame.QUIT:
-    #                 pygame.quit()
-    #                 exit()
-
-    #             elif event.type == pygame.MOUSEBUTTONDOWN:
-    #                 mouse_x, mouse_y = pygame.mouse.get_pos()
-
-    #                 if mode == "roll":
-    #                     print("roll")
-    #                     roll_button = pygame.Rect(self.screen_width // 4 + self.screen_width // 2 - 75, 
-    #                                           self.screen_height - 20 - 10, 150, 20)
-    #                     if roll_button.collidepoint(mouse_x, mouse_y):
-    #                         return "roll"
-
-    #                 elif mode == "select_number":
-    #                     print("selected_number")
-    #                     for button_rect, value in self.button_rects:
-    #                         if button_rect.collidepoint(mouse_x, mouse_y):
-    #                             return value  # Gibt die gewählte Zahl zurück
-
-    #                 elif mode == "choose_action":
-    #                     print("choose action")
-    #                     save_button = pygame.Rect(50, self.screen_height - 60, 150, 50)
-    #                     no_save_button = pygame.Rect(210, self.screen_height - 60, 150, 50)
-
-    #                     if save_button.collidepoint(mouse_x, mouse_y):
-    #                         return "s"  # Speichern
-    #                     elif no_save_button.collidepoint(mouse_x, mouse_y):
-    #                         return "n"  # Spielen
-
-
-    # def handle_mouse_click(self, buttons):
-    #     """Allgemeine Funktion zur Verarbeitung von Mausklicks.
-    
-    #     Parameter:
-    #     - buttons: Liste von Tupeln (Button-Rechteck, Rückgabewert)
-
-    #     Rückgabe:
-    #     - Rückgabewert des geklickten Buttons oder None, falls nichts geklickt wurde.
-    #     """
-    #     for event in pygame.event.get():
-    #         if event.type == pygame.QUIT:
-    #             pygame.quit()
-    #             exit()
-    #         elif event.type == pygame.MOUSEBUTTONDOWN:
-    #             mouse_x, mouse_y = pygame.mouse.get_pos()
-    #             for button_rect, value in buttons:
-    #                 if button_rect.collidepoint(mouse_x, mouse_y):
-    #                     print("in handle mouse")
-    #                     print(value)
-    #                     return value  # Gibt den Wert des Buttons zurück
-    #     return None  # Kein Button wurde gedrückt
-
 

@@ -9,6 +9,7 @@ from board import Board
 from player import Player
 from database import DiceStatistics
 #from diceGUI import DiceDecisionGUI  
+from rollstate import RollState
 
 class Game:
     def __init__(self, nplayer, fast, autoroll):
@@ -104,7 +105,7 @@ class Game:
 
     def ask_to_save_roll(self, dice_value, board):
         """Fragt den Spieler, ob er den Wurf speichern möchte, aber nur wenn er ihn auch spielen könnte."""
-        print("aufruf von aks_to_save_roll")
+        # print("aufruf von aks_to_save_roll")
         current_player = self.players[self.current_player_id]
 
         # Prüfen, ob mit dem geworfenen Würfelwert überhaupt ein Zug möglich wäre
@@ -127,9 +128,9 @@ class Game:
         # Entscheidung auswerten
         if choice == "s":
             self.stats.add_wurf(f"Player {current_player.player_id}", dice_value)
-            print(f"Player {current_player.player_id} hat {dice_value} gespeichert!")
-        else:
-            print("Zahl wird nicht gespeichert. Spieler zieht normal.")
+            # print(f"Player {current_player.player_id} hat {dice_value} gespeichert!")
+        # else:
+        #   print("Zahl wird nicht gespeichert. Spieler zieht normal.")
 
         return choice
     
@@ -139,44 +140,31 @@ class Game:
         print(f"Player {current_player.player_id} hat {dice_value} eins Abgezogen!")
 
     def move_roll_dice(self, board, screen):
-        if self.fast or self.autoroll:
-            self.steps = self.roll_dice()
-            choice = self.ask_to_save_roll(self.steps, board)  # GUI nutzen
-            if choice == "s":
-                self.steps = 0  # Kein Zug, wenn gespeichert wurde
-            board.steps = self.steps
-            board.refresh_board()
-            if self.autoroll:
-                time.sleep(0.5)
-            return True
-        else:
-            # Event-Verarbeitung während des Wartens auf den Button
-            
-            while not board.show_roll_die():
-                pygame.event.pump()  # Verarbeitet alle Events, damit der Button-Klick registriert wird
-                time.sleep(0.1)  # Kurze Pause zur Entlastung der CPU
+        # Event-Verarbeitung während des Wartens auf den Button
+        roll_state = RollState.WAITING
+        while roll_state == RollState.WAITING:
+            roll_state = board.show_roll_die()  # Das gibt nun eine RollState zurück
 
+            if roll_state == RollState.ROLL:
+                print("es wurde gewürfelt")
+                self.steps = self.roll_dice()  # Würfeln
+                choice = self.ask_to_save_roll(self.steps, board)  # Frage, ob speichern
+                if choice == "s":
+                    self.steps = 0  # Kein Zug, wenn gespeichert wurde
+                board.steps = self.steps
+                board.refresh_board()
+                time.sleep(0.3)  # Kurze Pause nach dem Wurf
+                return True  # Würfeln abgeschlossen, weitermachen
 
-            self.steps = self.roll_dice()  # Würfeln
-            choice = self.ask_to_save_roll(self.steps, board)  # Frage, ob speichern
-            if choice == "s":
-                self.steps = 0  # Kein Zug, wenn gespeichert wurde
-            board.steps = self.steps
-            board.refresh_board()
-            time.sleep(0.3)  # Kurze Pause nach dem Wurf
-            return True  # Würfeln abgeschlossen, weitermachen
-
-                #elif event.type in [pygame.MOUSEBUTTONDOWN, pygame.KEYDOWN] and not self.fast:
-                #    self.steps = self.roll_dice()
-                #    choice = self.ask_to_save_roll(self.steps, board)  # Spieler muss eine Entscheidung treffen
-                #    if choice == "s":
-                #        self.steps = 0  # Kein Zug, wenn gespeichert wurde
-                #    board.steps = self.steps
-                #    board.refresh_board()
-                #    time.sleep(0.3)
-                #    return True
-                
-                
+            # Wenn eine Zahl gewählt wurde, den Zug abschließen
+            if 1 <= roll_state.value <= 6:
+                print("es wurde eine Zahl gewählt", roll_state.value)
+                self.steps = roll_state.value  # Setze die gewählte Zahl als Schritte
+                board.steps = self.steps
+                self.use_db(roll_state.value)
+                board.refresh_board()
+                time.sleep(0.3)  # Kurze Pause nach dem Wurf
+                return True  # Würfeln abgeschlossen, weitermachen                
 
     def move_select_piece(self):
         while True:
