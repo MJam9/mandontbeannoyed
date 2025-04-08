@@ -13,10 +13,19 @@ Implementation of the German game "Mensch ärger dich nicht", similar to the eng
 - Can't send your own pieces home
 - Winner is who first fills hist 4 goal fields
 
+# Store Option
+An additional option to save a roll and use it later.
+
+- After each roll, you will be asked whether you want to play or save the roll
+- Play: the roll is used normally
+- Save: the rolled number is saved for the player, and the current turn ends
+- A roll can only be saved if it would be possible to play it
+- To use a saved number, it must be selected before rolling
+- A selected number is used in the same way as a rolled number
+
 # Run
 python dontbeannoyed.py
 
-options: -a for autoroll, you don't need to click to roll the die
-
 # Why?
-Really I want to train an AI to play this game, to more efficiently beat my girlfriend in it. So implementing the game is the first step.
+This implementation has modified store rules that I created im my childhood.
+For this modification I just wanted a digital version, to play it easier.
